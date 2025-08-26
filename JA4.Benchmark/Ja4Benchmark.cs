@@ -1,4 +1,7 @@
-﻿using BenchmarkDotNet.Attributes;
+﻿#pragma warning disable S109 // Magic numbers should not be used
+
+using BenchmarkDotNet.Attributes;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -12,6 +15,11 @@ namespace JA4.Benchmark;
 #endif
 public class Ja4Encoding
 {
+    /// <summary>
+    /// Conservative max stack size limit
+    /// </summary>
+    private const int MaxStackSize = 1024;
+
     public static IEnumerable<object[]> Data()
     {
         yield return new object[]
@@ -57,7 +65,7 @@ public class Ja4Encoding
     {
         var fingerprint = Original(bytes, bytes.Length);
 
-        if(fingerprint != expectedFingerprint)
+        if (fingerprint != expectedFingerprint)
         {
             throw new InvalidOperationException();
         }
@@ -65,8 +73,8 @@ public class Ja4Encoding
         return fingerprint;
     }
 
-    //[Benchmark]
-    //[ArgumentsSource(nameof(Data))]
+    [Benchmark]
+    [ArgumentsSource(nameof(Data))]
     public string Improved(string expectedFingerprint, byte[] bytes)
     {
         var fingerprint = Improved(bytes, bytes.Length);
@@ -513,7 +521,7 @@ public class Ja4Encoding
             return string.Empty;
         }
 
-        var span = bytes.Slice(0, length);
+        var span = bytes[..length];
 
         // TLS record header
         if (span[0] != 22)
@@ -619,21 +627,35 @@ public class Ja4Encoding
             return string.Empty;
         }
 
+        const int ushortByteRatio = sizeof(ushort) / sizeof(byte);    // 2
+
         // Decode cipher suites
-        List<ushort> cipherSuites = new();
+        int maxCipherSuites = cipherBytes / 2;
+        Debug.Assert(maxCipherSuites * ushortByteRatio <= MaxStackSize);
+
+        Span<ushort> cipherSuites = stackalloc ushort[maxCipherSuites];
+        int cipherSuitesIndex = 0;
         for (int i = 0; i + 1 < cipherBytes; i += 2)
         {
             ushort cs = (ushort)((span[cipherStart + i] << 8) | span[cipherStart + i + 1]);
             if (!IsGrease(cs))
             {
-                cipherSuites.Add(cs);
+                cipherSuites[cipherSuitesIndex] = cs;
+                cipherSuitesIndex++;
             }
         }
 
+        cipherSuites = cipherSuites[..cipherSuitesIndex];
+
         bool hasSni = false;
         string alpnTwoChars = "00";
-        List<ushort> hashExtensions = new();
-        List<ushort> signatureAlgos = new();  // in wire order
+
+        const int maxStackPerSpan = MaxStackSize / ushortByteRatio / 2;
+
+        Span<ushort> hashExtensions = stackalloc ushort[maxStackPerSpan];
+        Span<ushort> signatureAlgos = stackalloc ushort[maxStackPerSpan];  // in wire order
+        int hashExtensionsIndex = 0;
+        int signatureAlgosIndex = 0;
         int extensionCount = 0;
 
         int extOffset = extensionsStart;
@@ -701,7 +723,7 @@ public class Ja4Encoding
                         break;
 
                     case 0x002b: // supported_versions
-                        hashExtensions.Add(extType);
+                        hashExtensions[hashExtensionsIndex++] = extType;
                         if (extLen >= 1)
                         {
                             int verCountBytes = span[extDataStart];
@@ -735,7 +757,7 @@ public class Ja4Encoding
                         break;
 
                     case 0x000d: // signature_algorithms
-                        hashExtensions.Add(extType);
+                        hashExtensions[hashExtensionsIndex++] = extType;
                         if (extLen >= 2)
                         {
                             int sigBytes = (span[extDataStart] << 8) | span[extDataStart + 1];
@@ -752,7 +774,7 @@ public class Ja4Encoding
                                         continue;
                                     }
 
-                                    signatureAlgos.Add(algo);
+                                    signatureAlgos[signatureAlgosIndex++] = algo;
                                 }
                             }
                         }
@@ -760,7 +782,7 @@ public class Ja4Encoding
                         break;
 
                     default:
-                        hashExtensions.Add(extType);
+                        hashExtensions[hashExtensionsIndex++] = extType;
                         break;
                 }
             }
@@ -768,13 +790,16 @@ public class Ja4Encoding
             extOffset = extDataEnd;
         }
 
+        hashExtensions = hashExtensions[..hashExtensionsIndex];
+        signatureAlgos = signatureAlgos[..signatureAlgosIndex];
+
         string cipherHash = HashListForJa4(cipherSuites, sort: true);
         string extensionHash = HashExtensionsForJa4(hashExtensions, signatureAlgos);
 
-        char transport = 't';
+        const char transport = 't';
         string versionCode = GetTlsVersionCode(negotiatedVersion);
         char sniTag = hasSni ? 'd' : 'i';
-        string cipherCountStr = TwoDigitDecimal(cipherSuites.Count);
+        string cipherCountStr = TwoDigitDecimal(cipherSuites.Length);
         string extCountStr = TwoDigitDecimal(extensionCount);
 
         return string.Create(
@@ -803,9 +828,9 @@ public class Ja4Encoding
 
         // Local helpers
 
-        static string HashListForJa4(List<ushort> values, bool sort)
+        static string HashListForJa4(Span<ushort> values, bool sort)
         {
-            if (values.Count == 0)
+            if (values.Length == 0)
             {
                 return new string('0', 12);
             }
@@ -815,8 +840,8 @@ public class Ja4Encoding
                 values.Sort();
             }
 
-            var sb = new StringBuilder((values.Count * 5) - 1);
-            for (int i = 0; i < values.Count; i++)
+            var sb = new StringBuilder((values.Length * 5) - 1);
+            for (int i = 0; i < values.Length; i++)
             {
                 if (i > 0)
                 {
@@ -829,20 +854,20 @@ public class Ja4Encoding
             return Sha256First12(sb.ToString());
         }
 
-        static string HashExtensionsForJa4(List<ushort> extensions, List<ushort> sigAlgos)
+        static string HashExtensionsForJa4(Span<ushort> extensions, Span<ushort> sigAlgos)
         {
-            if (extensions.Count == 0 && sigAlgos.Count == 0)
+            if (extensions.Length == 0 && sigAlgos.Length == 0)
             {
                 return new string('0', 12);
             }
 
             extensions.Sort();
 
-            int baseLen = extensions.Count == 0 ? 0 : ((extensions.Count * 5) - 1);
-            int sigLen = sigAlgos.Count == 0 ? 0 : (1 + (sigAlgos.Count * 5) - 1);
+            int baseLen = extensions.Length == 0 ? 0 : ((extensions.Length * 5) - 1);
+            int sigLen = sigAlgos.Length == 0 ? 0 : (1 + (sigAlgos.Length * 5) - 1);
             var sb = new StringBuilder(baseLen + sigLen);
 
-            for (int i = 0; i < extensions.Count; i++)
+            for (int i = 0; i < extensions.Length; i++)
             {
                 if (i > 0)
                 {
@@ -852,10 +877,10 @@ public class Ja4Encoding
                 sb.Append(extensions[i].ToString("x4"));
             }
 
-            if (sigAlgos.Count > 0)
+            if (sigAlgos.Length > 0)
             {
                 sb.Append('_');
-                for (int i = 0; i < sigAlgos.Count; i++)
+                for (int i = 0; i < sigAlgos.Length; i++)
                 {
                     if (i > 0)
                     {
@@ -933,3 +958,5 @@ public class Ja4Encoding
         }
     }
 }
+#pragma warning restore S109 // Magic numbers should not be used
+
