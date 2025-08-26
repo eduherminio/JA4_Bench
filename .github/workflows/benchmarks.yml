@@ -53,5 +53,5 @@ jobs:
       with:
         name: artifacts-${{ matrix.os }}-${{ github.run_number }}
         # Can't include 'github.event.inputs.benchmark_name' in the name, since * is an invalid character
-        path: BenchmarkDotNet.Artifacts/results/
+        path: ./JA4.Benchmark/BenchmarkDotNet.Artifacts/results/
         if-no-files-found: error
