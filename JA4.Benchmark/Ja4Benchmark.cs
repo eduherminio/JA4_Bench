@@ -7,7 +7,9 @@ namespace JA4.Benchmark;
 [MarkdownExporterAttribute.GitHub]
 [HtmlExporter]
 [MemoryDiagnoser]
-//[BenchmarkDotNet.Diagnostics.Windows.Configs.NativeMemoryProfiler]
+#if OS_WINDOWS
+[BenchmarkDotNet.Diagnostics.Windows.Configs.NativeMemoryProfiler]
+#endif
 public class Ja4Encoding
 {
     public static IEnumerable<object[]> Data()
