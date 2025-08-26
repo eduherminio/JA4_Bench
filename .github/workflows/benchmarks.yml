@@ -40,10 +40,10 @@ jobs:
           ${{ runner.os }}-nuget-
 
     - name: Build
-      run: dotnet build -c Release
+      run: dotnet build -c Release --project ./JA4.Benchmark
 
     - name: Run ${{ github.event.inputs.benchmark_name }} benchmark
-      run: dotnet run -c Release --no-build --filter '${{ github.event.inputs.benchmark_name }}'
+      run: dotnet run -c Release --no-build --project ./JA4.Benchmark --filter '${{ github.event.inputs.benchmark_name }}'
 
     - name: 'Upload ${{ matrix.os }} artifacts'
       continue-on-error: false
