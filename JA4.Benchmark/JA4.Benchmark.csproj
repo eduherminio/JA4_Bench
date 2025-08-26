@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <StaticAnalysisCodeType>Benchmark</StaticAnalysisCodeType>
-
+    <NoWarn>$NoWarn;S109;S103</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
@@ -15,7 +15,6 @@
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.15.2" />
-    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.15.2" />
     <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="9.0.8" />
   </ItemGroup>
 
