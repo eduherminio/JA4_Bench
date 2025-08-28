@@ -1,11 +1,12 @@
 ﻿using System.Buffers;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace JA4.Benchmark;
 
-internal static class Ja4_Improved
+internal static class Ja4_Improved_3_HashListForJa4
 {
     // Record and message types
     private const byte TlsHandshakeRecordType = 22;
@@ -79,12 +80,6 @@ internal static class Ja4_Improved
     private static readonly byte[] _http11Pattern = "http/1.1"u8.ToArray();
     private static readonly byte[] _h2Pattern = "h2"u8.ToArray();
 
-    private static readonly ushort[] _greaseValues =
-    [
-        0x0A0A, 0x1A1A, 0x2A2A, 0x3A3A, 0x4A4A, 0x5A5A, 0x6A6A, 0x7A7A,
-        0x8A8A, 0x9A9A, 0xAAAA, 0xBABA, 0xCACA, 0xDADA, 0xEAEA, 0xFAFA
-    ];
-
     public static string EncodeJa4Fingerprint(ReadOnlySequence<byte> sequence)
     {
         if (sequence.IsSingleSegment)
@@ -148,6 +143,70 @@ internal static class Ja4_Improved
             hasSni,
             alpnTwoChars,
             extensionCount);
+    }
+
+    /// <summary>
+    /// See IsGrease_Optimization test for clarity.
+    /// </summary>
+    internal static bool IsGrease(ushort v)
+    {
+        // Grease values are 0x0A0A, 0x1A1A, ..., 0xFAFA
+        // Pattern: high byte == low byte and low nibble is 0xA.
+        return ((v & 0x0F0F) == 0x0A0A) && ((v >> 8) == (v & 0xFF));
+    }
+
+    /// <summary>
+    /// See UshortSpanToString_Optimization test for clarity
+    /// </summary>
+    internal static string UshortSpanToString(ReadOnlySpan<ushort> sortedValues)
+    {
+        // Each entry contributes "xxxx" (4 chars) and a comma, except the first.
+        int len = (sortedValues.Length * 5) - 1;
+        if (len <= 0)
+        {
+            len = 4;
+        }
+
+        string result;
+        char[] rented = ArrayPool<char>.Shared.Rent(len);
+        try
+        {
+            var chars = rented.AsSpan(0, len);
+            int p = 0;
+            for (int i = 0; i < sortedValues.Length; i++)
+            {
+                if (i > 0)
+                {
+                    chars[p++] = ',';
+                }
+
+                WriteHex4Lower(chars, ref p, sortedValues[i]);
+            }
+
+            result = Sha256First12FromAscii(chars);
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(rented);
+        }
+
+        return result;
+    }
+
+
+    internal static string Sha256First12(string input)
+    {
+        Span<byte> hash = stackalloc byte[32];
+        _ = SHA256.HashData(Encoding.ASCII.GetBytes(input), hash);
+        Span<char> chars = stackalloc char[HashSize];
+        for (int i = 0; i < HashByteCount; i++)
+        {
+            byte b = hash[i];
+            chars[i * HexDigitsPerByte] = HexNibble(b >> 4);
+            chars[(i * HexDigitsPerByte) + 1] = HexNibble(b & LowNibbleMask);
+        }
+
+        return new string(chars);
     }
 
     private static bool IsValidTlsRecord(
@@ -600,18 +659,66 @@ internal static class Ja4_Improved
             values.Sort();
         }
 
-        var sb = new StringBuilder((values.Length * 5) - 1);
-        for (int i = 0; i < values.Length; i++)
+        return UshortSpanToString(values);
+
+    }
+
+    // Writes the 4 lowercase-hex chars for a ushort into 'dst' starting at current index 'p'.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void WriteHex4Lower(Span<char> dst, ref int p, ushort v)
+    {
+        dst[p++] = HexNibble((v >> 12) & 0xF);
+        dst[p++] = HexNibble((v >> 8) & 0xF);
+        dst[p++] = HexNibble((v >> 4) & 0xF);
+        dst[p++] = HexNibble(v & 0xF);
+    }
+
+    private static string Sha256First12FromAscii(ReadOnlySpan<char> ascii)
+    {
+        // Convert ASCII chars to bytes without allocating strings/encoders.
+        int len = ascii.Length;
+
+        Span<byte> hash = stackalloc byte[32];
+        if (len <= 256)
         {
-            if (i > 0)
+            Span<byte> bytes = stackalloc byte[len];
+
+            for (int i = 0; i < len; i++)
             {
-                _ = sb.Append(',');
+                bytes[i] = (byte)ascii[i];
             }
 
-            _ = sb.Append(values[i].ToString("x4", CultureInfo.InvariantCulture));
+            _ = SHA256.HashData(bytes, hash);
+        }
+        else
+        {
+            byte[] rented = ArrayPool<byte>.Shared.Rent(len);
+            try
+            {
+                var bytes = rented.AsSpan(0, len);
+
+                for (int i = 0; i < len; i++)
+                {
+                    bytes[i] = (byte)ascii[i];
+                }
+
+                _ = SHA256.HashData(bytes, hash);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(rented);
+            }
         }
 
-        return Sha256First12(sb.ToString());
+        Span<char> chars = stackalloc char[HashSize];
+        for (int i = 0; i < HashByteCount; i++)
+        {
+            byte b = hash[i];
+            chars[i * HexDigitsPerByte] = HexNibble(b >> 4);
+            chars[(i * HexDigitsPerByte) + 1] = HexNibble(b & LowNibbleMask);
+        }
+
+        return new string(chars);
     }
 
     private static string HashExtensionsForJa4(Span<ushort> extensions, ReadOnlySpan<ushort> sigAlgos)
@@ -652,21 +759,6 @@ internal static class Ja4_Improved
         return Sha256First12(sb.ToString());
     }
 
-    private static string Sha256First12(string input)
-    {
-        Span<byte> hash = stackalloc byte[32];
-        _ = SHA256.HashData(Encoding.ASCII.GetBytes(input), hash);
-        Span<char> chars = stackalloc char[HashSize];
-        for (int i = 0; i < HashByteCount; i++)
-        {
-            byte b = hash[i];
-            chars[i * HexDigitsPerByte] = HexNibble(b >> 4);
-            chars[(i * HexDigitsPerByte) + 1] = HexNibble(b & LowNibbleMask);
-        }
-
-        return new string(chars);
-    }
-
     private static char HexNibble(int n)
     {
         if (n < DecimalBase)
@@ -677,21 +769,6 @@ internal static class Ja4_Improved
         {
             return (char)('a' + (n - DecimalBase));
         }
-    }
-
-    private static bool IsGrease(ushort v)
-    {
-        // Create a HashSet for faster lookups if this is called frequently
-        // Otherwise, a simple linear search works well for a small set
-        foreach (ushort grease in _greaseValues)
-        {
-            if (v == grease)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static string GetTlsVersionCode(ushort v) =>
@@ -800,9 +877,9 @@ internal static class Ja4_Improved
     private readonly ref struct ExtensionProcessingResult
     {
         public bool HasSni { get; }
-        public string AlpnValue { get; } = DefaultAlpn;
-        public Span<ushort> HashExtensions { get; } = [];
-        public Span<ushort> SignatureAlgorithms { get; } = [];
+        public string AlpnValue { get; }
+        public Span<ushort> HashExtensions { get; }
+        public Span<ushort> SignatureAlgorithms { get; }
         public int ExtensionCount { get; }
 
         public ExtensionProcessingResult(bool hasSni, string alpnTwoChars, HashSet<ushort> hashExtensions, List<ushort> signatureAlgos, int extensionCount)

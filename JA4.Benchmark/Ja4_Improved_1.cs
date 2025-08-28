@@ -5,7 +5,7 @@ using System.Text;
 
 namespace JA4.Benchmark;
 
-internal static class Ja4_Improved_Grease
+internal static class Ja4_Improved_1
 {
     // Record and message types
     private const byte TlsHandshakeRecordType = 22;
@@ -79,6 +79,12 @@ internal static class Ja4_Improved_Grease
     private static readonly byte[] _http11Pattern = "http/1.1"u8.ToArray();
     private static readonly byte[] _h2Pattern = "h2"u8.ToArray();
 
+    private static readonly ushort[] _greaseValues =
+    [
+        0x0A0A, 0x1A1A, 0x2A2A, 0x3A3A, 0x4A4A, 0x5A5A, 0x6A6A, 0x7A7A,
+        0x8A8A, 0x9A9A, 0xAAAA, 0xBABA, 0xCACA, 0xDADA, 0xEAEA, 0xFAFA
+    ];
+
     public static string EncodeJa4Fingerprint(ReadOnlySequence<byte> sequence)
     {
         if (sequence.IsSingleSegment)
@@ -142,13 +148,6 @@ internal static class Ja4_Improved_Grease
             hasSni,
             alpnTwoChars,
             extensionCount);
-    }
-
-    internal static bool IsGrease(ushort v)
-    {
-        // Grease values are 0x0A0A, 0x1A1A, ..., 0xFAFA
-        // Pattern: high byte == low byte and low nibble is 0xA.
-        return ((v & 0x0F0F) == 0x0A0A) && ((v >> 8) == (v & 0xFF));
     }
 
     private static bool IsValidTlsRecord(
@@ -680,6 +679,21 @@ internal static class Ja4_Improved_Grease
         }
     }
 
+    private static bool IsGrease(ushort v)
+    {
+        // Create a HashSet for faster lookups if this is called frequently
+        // Otherwise, a simple linear search works well for a small set
+        foreach (ushort grease in _greaseValues)
+        {
+            if (v == grease)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static string GetTlsVersionCode(ushort v) =>
         v switch
         {
@@ -786,9 +800,9 @@ internal static class Ja4_Improved_Grease
     private readonly ref struct ExtensionProcessingResult
     {
         public bool HasSni { get; }
-        public string AlpnValue { get; }
-        public Span<ushort> HashExtensions { get; }
-        public Span<ushort> SignatureAlgorithms { get; }
+        public string AlpnValue { get; } = DefaultAlpn;
+        public Span<ushort> HashExtensions { get; } = [];
+        public Span<ushort> SignatureAlgorithms { get; } = [];
         public int ExtensionCount { get; }
 
         public ExtensionProcessingResult(bool hasSni, string alpnTwoChars, HashSet<ushort> hashExtensions, List<ushort> signatureAlgos, int extensionCount)

@@ -135,9 +135,9 @@ public class Ja4SingleBenchmark
 
     [Benchmark]
     [ArgumentsSource(nameof(Data))]
-    public string Improved(string expectedFingerprint, byte[] bytes)
+    public string Improved_1(string expectedFingerprint, byte[] bytes)
     {
-        var fingerprint = Ja4_Improved.EncodeJa4Fingerprint(bytes, bytes.Length);
+        var fingerprint = Ja4_Improved_1.EncodeJa4Fingerprint(bytes, bytes.Length);
 
         if (fingerprint != expectedFingerprint)
         {
@@ -149,9 +149,9 @@ public class Ja4SingleBenchmark
 
     [Benchmark]
     [ArgumentsSource(nameof(Data))]
-    public string Improved_1_Grease(string expectedFingerprint, byte[] bytes)
+    public string Improved_2_Grease(string expectedFingerprint, byte[] bytes)
     {
-        var fingerprint = Ja4_Improved_Grease.EncodeJa4Fingerprint(bytes, bytes.Length);
+        var fingerprint = Ja4_Improved_2_Grease.EncodeJa4Fingerprint(bytes, bytes.Length);
 
         if (fingerprint != expectedFingerprint)
         {
@@ -163,9 +163,23 @@ public class Ja4SingleBenchmark
 
     [Benchmark]
     [ArgumentsSource(nameof(Data))]
-    public string Improved_2_HashListForJa4(string expectedFingerprint, byte[] bytes)
+    public string Improved_3_HashListForJa4(string expectedFingerprint, byte[] bytes)
     {
-        var fingerprint = Ja4_Improved_HashListForJa4.EncodeJa4Fingerprint(bytes, bytes.Length);
+        var fingerprint = Ja4_Improved_3_HashListForJa4.EncodeJa4Fingerprint(bytes, bytes.Length);
+
+        if (fingerprint != expectedFingerprint)
+        {
+            throw new InvalidOperationException();
+        }
+
+        return fingerprint;
+    }
+
+    [Benchmark]
+    [ArgumentsSource(nameof(Data))]
+    public string Improved_4_HashExtensionsForJa4(string expectedFingerprint, byte[] bytes)
+    {
+        var fingerprint = Ja4_Improved_4_HashExtensionsForJa4.EncodeJa4Fingerprint(bytes, bytes.Length);
 
         if (fingerprint != expectedFingerprint)
         {
