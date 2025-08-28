@@ -168,9 +168,10 @@ internal static class Ja4_Improved_HashListForJa4
         }
 
         string result;
-        if (len <= 256)
+        char[] rented = ArrayPool<char>.Shared.Rent(len);
+        try
         {
-            Span<char> chars = stackalloc char[len];
+            var chars = rented.AsSpan(0, len);
             int p = 0;
             for (int i = 0; i < sortedValues.Length; i++)
             {
@@ -184,29 +185,9 @@ internal static class Ja4_Improved_HashListForJa4
 
             result = Sha256First12FromAscii(chars);
         }
-        else
+        finally
         {
-            char[] rented = ArrayPool<char>.Shared.Rent(len);
-            try
-            {
-                var chars = rented.AsSpan(0, len);
-                int p = 0;
-                for (int i = 0; i < sortedValues.Length; i++)
-                {
-                    if (i > 0)
-                    {
-                        chars[p++] = ',';
-                    }
-
-                    WriteHex4Lower(chars, ref p, sortedValues[i]);
-                }
-
-                result = Sha256First12FromAscii(chars);
-            }
-            finally
-            {
-                ArrayPool<char>.Shared.Return(rented);
-            }
+            ArrayPool<char>.Shared.Return(rented);
         }
 
         return result;
