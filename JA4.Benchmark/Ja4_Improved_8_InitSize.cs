@@ -427,9 +427,9 @@ internal static class Ja4_Improved_8_InitSize
     {
         bool hasSni = false;
         string alpnTwoChars = DefaultAlpn;
-        HashSet<ushort> hashExtensions = new(32);
-        List<ushort> signatureAlgos = new(32);
-        HashSet<ushort> distinctExtensions = new(32);
+        HashSet<ushort> hashExtensions = new(16);
+        List<ushort> signatureAlgos = new(16);
+        HashSet<ushort> distinctExtensions = new(16);
         int extensionCount = 0;
 
         // First pass - Count all extensions and parse the ones we can fully read
