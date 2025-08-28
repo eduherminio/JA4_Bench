@@ -160,4 +160,18 @@ public class Ja4SingleBenchmark
 
         return fingerprint;
     }
+
+    [Benchmark]
+    [ArgumentsSource(nameof(Data))]
+    public string Improved_HashListForJa4(string expectedFingerprint, byte[] bytes)
+    {
+        var fingerprint = Ja4_Improved_HashListForJa4.EncodeJa4Fingerprint(bytes, bytes.Length);
+
+        if (fingerprint != expectedFingerprint)
+        {
+            throw new InvalidOperationException();
+        }
+
+        return fingerprint;
+    }
 }
