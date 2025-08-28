@@ -149,7 +149,7 @@ public class Ja4MultipleBenchmark
 
         for (int i = 0; i < iterations; ++i)
         {
-            foreach (var  (expectedFingerPrint, bytes) in TestCases)
+            foreach (var (expectedFingerPrint, bytes) in TestCases)
             {
                 var fingerprint = Ja4_Improved.EncodeJa4Fingerprint(bytes, bytes.Length);
 
@@ -167,13 +167,13 @@ public class Ja4MultipleBenchmark
 
     [Benchmark]
     [ArgumentsSource(nameof(Data))]
-    public ulong Improved_Grease(int iterations)
+    public ulong Improved_1_Grease(int iterations)
     {
         ulong result = 0;
 
         for (int i = 0; i < iterations; ++i)
         {
-            foreach (var  (expectedFingerPrint, bytes) in TestCases)
+            foreach (var (expectedFingerPrint, bytes) in TestCases)
             {
                 var fingerprint = Ja4_Improved_Grease.EncodeJa4Fingerprint(bytes, bytes.Length);
 
@@ -191,39 +191,15 @@ public class Ja4MultipleBenchmark
 
     [Benchmark]
     [ArgumentsSource(nameof(Data))]
-    public ulong Improved_HashListForJa4(int iterations)
+    public ulong Improved_2_HashListForJa4(int iterations)
     {
         ulong result = 0;
 
         for (int i = 0; i < iterations; ++i)
         {
-            foreach (var  (expectedFingerPrint, bytes) in TestCases)
+            foreach (var (expectedFingerPrint, bytes) in TestCases)
             {
                 var fingerprint = Ja4_Improved_HashListForJa4.EncodeJa4Fingerprint(bytes, bytes.Length);
-
-                if (fingerprint != expectedFingerPrint)
-                {
-                    throw new InvalidOperationException();
-                }
-
-                result += (ulong)fingerprint.Length;
-            }
-        }
-
-        return result;
-    }
-
-    [Benchmark]
-    [ArgumentsSource(nameof(Data))]
-    public ulong Improved_HashListForJa4_NoSpan(int iterations)
-    {
-        ulong result = 0;
-
-        for (int i = 0; i < iterations; ++i)
-        {
-            foreach (var  (expectedFingerPrint, bytes) in TestCases)
-            {
-                var fingerprint = Ja4_Improved_HashListForJa4_NoSpan.EncodeJa4Fingerprint(bytes, bytes.Length);
 
                 if (fingerprint != expectedFingerPrint)
                 {

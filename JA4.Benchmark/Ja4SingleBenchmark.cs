@@ -149,7 +149,7 @@ public class Ja4SingleBenchmark
 
     [Benchmark]
     [ArgumentsSource(nameof(Data))]
-    public string Improved_Grease(string expectedFingerprint, byte[] bytes)
+    public string Improved_1_Grease(string expectedFingerprint, byte[] bytes)
     {
         var fingerprint = Ja4_Improved_Grease.EncodeJa4Fingerprint(bytes, bytes.Length);
 
@@ -163,7 +163,7 @@ public class Ja4SingleBenchmark
 
     [Benchmark]
     [ArgumentsSource(nameof(Data))]
-    public string Improved_HashListForJa4(string expectedFingerprint, byte[] bytes)
+    public string Improved_2_HashListForJa4(string expectedFingerprint, byte[] bytes)
     {
         var fingerprint = Ja4_Improved_HashListForJa4.EncodeJa4Fingerprint(bytes, bytes.Length);
 
