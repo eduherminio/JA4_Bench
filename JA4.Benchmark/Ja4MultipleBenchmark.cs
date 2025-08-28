@@ -308,4 +308,28 @@ public class Ja4MultipleBenchmark
 
         return result;
     }
+
+    [Benchmark]
+    [ArgumentsSource(nameof(Data))]
+    public ulong Improved_8_InitSize(int iterations)
+    {
+        ulong result = 0;
+
+        for (int i = 0; i < iterations; ++i)
+        {
+            foreach (var (expectedFingerPrint, bytes) in TestCases)
+            {
+                var fingerprint = Ja4_Improved_8_InitSize.EncodeJa4Fingerprint(bytes, bytes.Length);
+
+                if (fingerprint != expectedFingerPrint)
+                {
+                    throw new InvalidOperationException();
+                }
+
+                result += (ulong)fingerprint.Length;
+            }
+        }
+
+        return result;
+    }
 }
